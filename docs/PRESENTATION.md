@@ -242,9 +242,9 @@ Hand-derive cycle 1 on the slide as a sanity check:
 
 ## 8. Reading the waveform
 
-The captured waveform is checked in as `docs/FST Waveform.png`:
+The captured waveform is checked in as `docs/waveform.png`:
 
-![Waveform](<FST Waveform.png>)
+![Waveform](waveform.png)
 
 What it shows, top to bottom:
 

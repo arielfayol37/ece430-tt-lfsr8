@@ -174,7 +174,7 @@ end
       <!-- Slide 9: Waveform -->
       <section>
         <h2>Simulation waveform</h2>
-        <img class="slide-image" src="FST Waveform.png" alt="Simulation waveform" style="max-height: 62vh;">
+        <img class="slide-image" src="waveform.png" alt="Simulation waveform" style="max-height: 62vh;">
         <p class="small center"><code>state</code>: <code class="accent">ac → 59 → b2 → 65 → cb → 96 → 2c → 58 → b0 → c1 → c3 → b7 → 8f → 1f → 3e → 7d → …</code></p>
         <aside class="notes">
           Here's the waveform from the test, viewed in Surfer. Watch the state row — once reset goes high, you can see it cycle through ac, 59, b2, 65, cb, and so on. Looks random, but it's completely deterministic. Same seed, same sequence, every time. Quick sanity check: the seed is 0xac, which in binary is 1010 1100. Tap bits at positions 7, 5, 4, 3 are 1, 1, 0, 1. XOR them: 1 xor 1 is 0, xor 0 is 0, xor 1 is 1. So the feedback bit is 1. Shift left and append: 0101 1001 — that's 0x59. Matches.

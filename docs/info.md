@@ -61,7 +61,7 @@ make
 
 ### Simulation waveform
 
-![Simulation waveform showing reset release and the first ~16 LFSR states](<FST Waveform.png>)
+![Simulation waveform showing reset release and the first ~16 LFSR states](waveform.png)
 
 The trace above is from `test_lfsr_sequence` opened in Surfer. After
 `rst_n` rises, `state` cycles through `ac → 59 → b2 → 65 → cb → 96 → 2c → 58
