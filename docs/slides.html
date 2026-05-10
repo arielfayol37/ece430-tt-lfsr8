@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>8-bit LFSR — Final Project — Fayol Ateufack</title>
+
+  <!--
+    To present:
+      1. Open this file in any modern browser (double-click, or `open slides.html`).
+      2. Press F to fullscreen, S to open speaker-notes window.
+      3. Arrow keys / Space to navigate.
+
+    To produce a PDF (e.g. for projection without internet):
+      Open `slides.html?print-pdf` in Chrome, then File → Print → Save as PDF.
+  -->
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reset.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/theme/black.css" id="theme">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/monokai.css">
+
+  <style>
+    .reveal h1 { font-size: 1.9em; }
+    .reveal h2 { font-size: 1.3em; color: #4ec9b0; margin-bottom: 0.6em; text-transform: none; }
+    .reveal h3 { font-size: 1.05em; color: #9cdcfe; }
+    .reveal p, .reveal li { font-size: 0.85em; }
+    .reveal pre { box-shadow: none; font-size: 0.55em; width: 90%; }
+    .reveal pre code { padding: 0.6em 1em; max-height: none; }
+    .reveal table { font-size: 0.65em; margin: 0 auto; border-collapse: collapse; }
+    .reveal table th, .reveal table td { padding: 0.3em 0.7em; border: 1px solid #555; text-align: left; }
+    .reveal table th { background: #1e1e1e; color: #4ec9b0; }
+    .reveal img.slide-image { display: block; margin: 0.4em auto; max-height: 60vh; max-width: 90%; border-radius: 4px; }
+    .reveal .small { font-size: 0.7em; color: #aaa; }
+    .reveal .accent { color: #4ec9b0; }
+    .reveal .muted { color: #888; }
+    .reveal .center { text-align: center; }
+    .reveal section.title-slide h1 { color: #4ec9b0; margin-bottom: 0.2em; }
+    .reveal section.title-slide .subtitle { color: #ccc; font-size: 0.7em; margin: 0.1em; }
+    .reveal section.title-slide .author { color: #fff; font-size: 0.95em; margin-top: 0.6em; }
+    .reveal ul li { margin: 0.25em 0; }
+    .reveal code { color: #d7ba7d; }
+    .poly { font-size: 1.5em; color: #4ec9b0; text-align: center; margin: 0.4em 0; }
+    .pass-banner { display: inline-block; background: #1e3a1e; color: #4ade80; padding: 0.3em 1em; border-radius: 4px; font-family: monospace; font-size: 0.9em; margin-top: 0.4em; }
+  </style>
+</head>
+<body>
+  <div class="reveal">
+    <div class="slides">
+
+      <!-- Slide 1: Title -->
+      <section class="title-slide">
+        <h1>8-bit LFSR Pseudo-Random Generator</h1>
+        <p class="subtitle">Tiny Tapeout · sky130 · 50 MHz</p>
+        <p class="author">Fayol Ateufack</p>
+        <p class="subtitle muted">Digital Design — Final Project — May 13, 2026</p>
+        <aside class="notes">
+          Hi, I'm Fayol. For my final project I designed an 8-bit linear-feedback shift register and pushed it through the entire Tiny Tapeout flow — Verilog, simulation, synthesis, place-and-route — all the way to a GDSII layout that could go to a fab. I'll show you the design, the verification, and the chip layout in about five minutes.
+        </aside>
+      </section>
+
+      <!-- Slide 2: What is Tiny Tapeout -->
+      <section>
+        <h2>What is Tiny Tapeout?</h2>
+        <ul>
+          <li>Educational program — get your digital design <em>actually fabricated</em> for ~$50</li>
+          <li>Many small student designs share one die in the SkyWater 130 nm process</li>
+          <li>Each project gets a <strong>1 × 1 tile ≈ 167 µm × 108 µm</strong></li>
+          <li>Open-source EDA flow: Verilog → Yosys → LibreLane → GDSII</li>
+          <li>Standard pinout: 8 inputs, 8 outputs, 8 bidirectionals, plus <code>clk</code>, <code>rst_n</code>, <code>ena</code></li>
+        </ul>
+        <aside class="notes">
+          Quick context. Tiny Tapeout pools many small student designs onto a single chip and ships them to SkyWater for manufacturing. You design in Verilog, an open-source toolchain turns it into a physical layout, the consortium takes care of fabrication. Each student gets a fixed-size tile and a fixed pinout — eight inputs, eight outputs, eight bidirectionals, plus clock and reset.
+        </aside>
+      </section>
+
+      <!-- Slide 3: The design -->
+      <section>
+        <h2>The design</h2>
+        <p>An <strong>8-bit Fibonacci LFSR</strong>, characteristic polynomial:</p>
+        <p class="poly">x⁸ + x⁶ + x⁵ + x⁴ + 1</p>
+        <ul>
+          <li>Period <strong>255</strong> — every non-zero 8-bit state appears exactly once before repeating</li>
+          <li>Seed loaded from <code>ui_in[7:0]</code> while reset is held low</li>
+          <li>Current state on <code>uo_out[7:0]</code> — drives 8 LEDs</li>
+          <li>Total core: 8 flip-flops + 1 XOR + a handful of muxes</li>
+        </ul>
+        <aside class="notes">
+          The design itself is an 8-bit Fibonacci LFSR. The polynomial — x to the 8 plus x to the 6 plus x to the 5 plus x to the 4 plus 1 — is a primitive polynomial of degree 8, which is the magic property that gives us a maximal-length sequence: every non-zero 8-bit value appears exactly once before the sequence repeats. Period of 255. You feed in a seed on the input pins while reset is held, then release reset and the chip emits that 255-cycle sequence on its output pins. The whole thing is eight flops, one XOR, and a few muxes.
+        </aside>
+      </section>
+
+      <!-- Slide 4: Why LFSRs matter -->
+      <section>
+        <h2>Why LFSRs matter</h2>
+        <p>One XOR gate, big real-world impact:</p>
+        <ul>
+          <li><strong>BIST</strong> — pseudo-random patterns drive a CPU during manufacturing test</li>
+          <li><strong>CRC generators</strong> — Ethernet, USB, PCIe, SATA, hard drives</li>
+          <li><strong>Scramblers</strong> — 10 GbE, SATA, PCIe whiten data so the receiver can recover the clock</li>
+          <li><strong>Spread-spectrum codes</strong> — GPS Gold codes are XORs of two LFSRs</li>
+          <li><strong>Cheap noise sources</strong> — NES sound chip, retro audio</li>
+        </ul>
+        <aside class="notes">
+          Why should anyone care? LFSRs aren't a toy — they're in real chips you use every day. Every Ethernet frame on your laptop runs through a CRC-32 LFSR. PCIe and SATA scramble their data with LFSRs so the receiver can recover the clock from the data signal. GPS receivers use two intertwined LFSRs to encode each satellite's signal. Inside CPUs, BIST circuits drive pseudo-random LFSR patterns into the logic during manufacturing test. Anywhere a chip needs cheap pseudo-randomness without a real RNG, an LFSR is doing the work.
+        </aside>
+      </section>
+
+      <!-- Slide 5: Architecture / block diagram -->
+      <section>
+        <h2>Architecture</h2>
+        <img class="slide-image" src="block_diagram.png" alt="LFSR block diagram">
+        <p class="small">Eight flops · four taps (b3, b4, b5, b7) · XOR feeds back into b0</p>
+        <aside class="notes">
+          Here's the architecture. Eight D-flip-flops chained left-to-right. On every clock edge, each flop takes the value of its left neighbor, so the whole register shifts one bit per cycle. The bit that gets shifted in at b0 is the XOR of four "tap" positions — bits 3, 4, 5, and 7 — and those tap positions are dictated by the polynomial. There's also a synchronous-load path: while reset is low, every flop takes its value from the corresponding bit of the input pins, which is how the seed gets loaded.
+        </aside>
+      </section>
+
+      <!-- Slide 6: The Verilog -->
+      <section>
+        <h2>The Verilog (the entire core)</h2>
+<pre><code class="language-verilog" data-trim>
+reg [7:0] state;
+
+wire [7:0] safe_seed = (ui_in == 8'h00) ? 8'h01 : ui_in;
+wire feedback = state[7] ^ state[5] ^ state[4] ^ state[3];
+
+always @(posedge clk) begin
+  if (!rst_n) state &lt;= safe_seed;
+  else        state &lt;= {state[6:0], feedback};
+end
+</code></pre>
+        <p class="small accent center">Synchronous reset — maps cleanly to sky130 D-flop + 2:1 mux cells</p>
+        <aside class="notes">
+          This is the entire core of the design — five lines of Verilog. The state register is one 8-bit flop. The safe_seed wire substitutes 0x01 if the user feeds in an all-zero seed — because the all-zero state is a fixed point of the XOR feedback, once you reach zero you stay at zero. The feedback wire is the single XOR gate, four inputs. And the always block says: on every rising clock edge, if reset is low, load the seed; otherwise shift left and append the feedback bit. One subtle point: I use synchronous reset rather than async, because sky130 standard-cell flops can't async-load an arbitrary value — only constants. Synchronous reset becomes a 2-to-1 mux on the D input of each flop, which maps cleanly.
+        </aside>
+      </section>
+
+      <!-- Slide 7: Pin assignments -->
+      <section>
+        <h2>Pin assignments</h2>
+        <table>
+          <thead>
+            <tr><th>Pin</th><th>Direction</th><th>Role</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>ui_in[7:0]</code></td><td>input</td><td>8-bit seed (sampled while <code>rst_n = 0</code>)</td></tr>
+            <tr><td><code>uo_out[7:0]</code></td><td>output</td><td>Current LFSR state — drives 8 LEDs</td></tr>
+            <tr><td><code>clk</code></td><td>input</td><td>50 MHz nominal</td></tr>
+            <tr><td><code>rst_n</code></td><td>input</td><td>Active-low; loads seed while asserted</td></tr>
+            <tr><td><code>ena</code></td><td>input</td><td>Always 1 when chip is selected</td></tr>
+            <tr><td><code>uio[7:0]</code></td><td>—</td><td>Unused</td></tr>
+          </tbody>
+        </table>
+        <aside class="notes">
+          Tiny Tapeout has a fixed pinout, so my job was to assign meaning to each pin. The eight inputs are the seed bus. The eight outputs are the current LFSR state — wire them to LEDs and you literally see the pseudo-random pattern. Standard clock and active-low reset. The eight bidirectional pins I left unused — they're driven low and configured as inputs.
+        </aside>
+      </section>
+
+      <!-- Slide 8: Verification -->
+      <section>
+        <h2>Verification — three cocotb tests</h2>
+        <ol>
+          <li><strong>Sequence match</strong> — clock 255 cycles from seed <code>0xAC</code>; assert hardware state == Python reference at <em>every</em> cycle; verify all 255 states are unique and we return to the seed.</li>
+          <li><strong>Zero-seed lockup avoidance</strong> — feed seed <code>0x00</code>; verify substitution to <code>0x01</code> kicks in; verify state never reaches 0.</li>
+          <li><strong>Seed independence</strong> — verify three different seeds produce three different output streams.</li>
+        </ol>
+        <p class="center"><span class="pass-banner">✓ TESTS=3  PASS=3  FAIL=0</span></p>
+        <aside class="notes">
+          Three cocotb tests, all passing on every CI run. The strongest one runs the LFSR for one full period — 255 clock cycles — and at every single cycle it asserts that the hardware output matches a Python reference model. If a single tap were wrong, or if I'd shifted in the wrong direction, this test would fail by cycle 1. The second test verifies the zero-seed safety guard. The third checks that different seeds produce different output streams, as a sanity check.
+        </aside>
+      </section>
+
+      <!-- Slide 9: Waveform -->
+      <section>
+        <h2>Simulation waveform</h2>
+        <img class="slide-image" src="FST Waveform.png" alt="Simulation waveform" style="max-height: 62vh;">
+        <p class="small center"><code>state</code>: <code class="accent">ac → 59 → b2 → 65 → cb → 96 → 2c → 58 → b0 → c1 → c3 → b7 → 8f → 1f → 3e → 7d → …</code></p>
+        <aside class="notes">
+          Here's the waveform from the test, viewed in Surfer. Watch the state row — once reset goes high, you can see it cycle through ac, 59, b2, 65, cb, and so on. Looks random, but it's completely deterministic. Same seed, same sequence, every time. Quick sanity check: the seed is 0xac, which in binary is 1010 1100. Tap bits at positions 7, 5, 4, 3 are 1, 1, 0, 1. XOR them: 1 xor 1 is 0, xor 0 is 0, xor 1 is 1. So the feedback bit is 1. Shift left and append: 0101 1001 — that's 0x59. Matches.
+        </aside>
+      </section>
+
+      <!-- Slide 10: GDS layout / RTL-to-silicon -->
+      <section>
+        <h2>From RTL to silicon</h2>
+        <img class="slide-image" src="gds_render.png" alt="Hardened GDSII layout" style="max-height: 56vh;">
+        <p class="small muted center">Yosys synthesis → floorplan → placement → CTS → routing → DRC / LVS / STA → GDSII</p>
+        <aside class="notes">
+          And here's the final layout — the actual mask data that would go to the foundry. The dense cluster at the top right is my LFSR logic — eight flops, the XOR, the seed-load muxes. The vast field below is filler and decoupling cells the flow inserts automatically. They contribute no logic; they're there because the manufacturing process needs minimum-density rules satisfied across the whole tile, otherwise the chemical-mechanical polish step would dish out empty regions. The flow that gets you here: Yosys does synthesis, turning Verilog into a netlist of standard cells. LibreLane handles floorplanning, placement, clock-tree synthesis, routing, design-rule and timing checks, and finally GDSII export. The whole pipeline runs in GitHub Actions in about three minutes.
+        </aside>
+      </section>
+
+      <!-- Slide 11: What I learned -->
+      <section>
+        <h2>What I learned</h2>
+        <ul>
+          <li><strong>Async vs sync reset matters at synthesis time.</strong> sky130 flops can't async-reset to a non-constant value — my first GDS run produced 8 unmapped instances until I switched to synchronous reset.</li>
+          <li><strong>Cocotb 2.0 sampling is subtle for sequential logic.</strong> Reads after <code>RisingEdge</code> can return pre-edge values; sampling on <code>FallingEdge</code> guarantees the non-blocking assignments have settled.</li>
+          <li><strong>Pseudo-random ≠ random.</strong> A 255-cycle deterministic sequence has good statistical properties but zero entropy — fine for BIST and scramblers, never for crypto.</li>
+          <li><strong>Real logic is tiny; tiles fill with mandatory filler.</strong> ~50 µm² of "real" gates, but the visible tile is ~18 000 µm² — the rest is filler and decap.</li>
+        </ul>
+        <aside class="notes">
+          A few things I learned the hard way. First — async reset to a non-constant value, like the seed I was loading on negedge of reset, doesn't map to any sky130 standard-cell flop. Yosys reported eight unmapped instances on my very first GDS run. Switching to synchronous reset fixed it immediately. Second — cocotb 2.0 returns from RisingEdge at the active edge, before non-blocking assignments have propagated. So I read the pre-edge value and one of my tests failed. Sampling on FallingEdge gives the simulator time to settle. And third — even though my logic is fifty square micrometers, the chip tile is much larger because the manufacturing flow inserts filler cells to satisfy density rules.
+        </aside>
+      </section>
+
+      <!-- Slide 12: Thanks / Q&A -->
+      <section class="title-slide">
+        <h1>Thank you</h1>
+        <p class="subtitle">Repo &nbsp;<code>github.com/arielfayol37/ece430-tt-lfsr8</code></p>
+        <p class="subtitle">Datasheet &nbsp;<code>arielfayol37.github.io/ece430-tt-lfsr8</code></p>
+        <p class="accent" style="margin-top: 1.5em; font-size: 1.4em;">Questions?</p>
+        <aside class="notes">
+          Thanks for listening. The full project — Verilog, tests, datasheet, layout files, and a written walkthrough — is on GitHub. Happy to take questions.
+        </aside>
+      </section>
+
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/dist/reveal.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/highlight/highlight.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/plugin/notes/notes.js"></script>
+  <script>
+    Reveal.initialize({
+      hash: true,
+      slideNumber: 'c/t',
+      width: 1280,
+      height: 800,
+      margin: 0.05,
+      transition: 'fade',
+      plugins: [RevealHighlight, RevealNotes]
+    });
+  </script>
+</body>
+</html>
