@@ -27,23 +27,13 @@ a seed of `0x00` is automatically substituted with `0x01`.
 
 ### Block diagram
 
-```
-              +--------------------------------------------+
-              |                                            |
-   ui_in[7:0] |        +----+----+----+----+----+----+----+----+
-   ---------->| seed   | b7 | b6 | b5 | b4 | b3 | b2 | b1 | b0 |---> uo_out[7:0]
-   (load on   | mux    +----+----+----+----+----+----+----+----+
-    rst_n=0)  |          |         |    |    |
-              |          +----+    |    |    |
-              |               v    v    v    v
-              |              +-XOR-XOR-XOR----+
-              |                  feedback     |
-              |                               |
-              |  shift left, feedback -> b0   |
-              +-------------------------------+
-                          ^
-                          | clk, rst_n
-```
+![Block diagram of the 8-bit Fibonacci LFSR](block_diagram.svg)
+
+The eight register cells (`b0`–`b7`) form a left-shifting register. On every
+clock edge each cell takes the value of its left neighbour; the new bit at
+`b0` is the XOR of the four taps marked with `*`. While `rst_n` is low, every
+cell is overwritten with the corresponding bit of `ui_in`, so deasserting
+reset releases the LFSR with the user-supplied seed.
 
 ## How to test
 
