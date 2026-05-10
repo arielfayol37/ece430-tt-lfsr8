@@ -242,24 +242,28 @@ Hand-derive cycle 1 on the slide as a sanity check:
 
 ## 8. Reading the waveform
 
-After the test workflow runs, GitHub Actions uploads a file called `tb.fst`
-as an artifact. To download:
+The captured waveform is checked in as `docs/FST Waveform.png`:
 
-1. Go to the Actions tab → the `test` workflow run → scroll to **Artifacts** at the bottom.
-2. Download the zip; inside is `tb.fst`.
-3. Open it in **Surfer** (https://surfer-project.org, browser-based) or **GTKWave** (desktop).
-4. Add these signals to the wave window:
-   - `tb.user_project.clk`
-   - `tb.user_project.rst_n`
-   - `tb.user_project.ui_in[7:0]` (the seed bus)
-   - `tb.user_project.state[7:0]` (the internal register — the most interesting one)
-   - `tb.user_project.feedback` (the XOR output, optional)
-   - `tb.user_project.uo_out[7:0]` (mirrors `state`)
+![Waveform](<FST Waveform.png>)
 
-What you should *see* (and call out on the slide):
-- A long stretch with `rst_n = 0`, `state` held at the seed.
-- The instant `rst_n` goes high, `state` starts changing on every rising edge.
-- Each state value differs from the previous in a way that *looks* random but is fully deterministic — that's the punchline.
+What it shows, top to bottom:
+
+| Signal | What to point at on the slide |
+|---|---|
+| `rst_n` | Goes high near `~25,000 ps` — that's the moment the LFSR is "released". |
+| `clk` | Free-running 100 kHz simulation clock (10 µs period). One rising edge per state transition. |
+| `ui_in[7:0]` | Holds `ac` throughout — the seed we configured the test with. |
+| `state[7:0]` | Starts at `ac` (the loaded seed), then on each rising edge becomes `59, b2, 65, cb, 96, 2c, 58, b0, c1, c3, b7, 8f, 1f, 3e, 7d, …` |
+| `feedback` | The XOR output shifted into bit 0 — this is the bit that *makes* the next state. |
+| `uo_out[7:0]` | Identical to `state` (it is `state` — exposed on the output pins). |
+
+The talk-friendly point: *every state value looks random, but it's
+**deterministic** — the same seed gives the same sequence every time. After
+exactly 255 cycles `state` returns to `ac` and the whole cycle repeats.*
+
+If you need to regenerate the waveform: download the `tb.fst` artifact from
+the latest `test` workflow run, drop it into https://app.surfer-project.org/,
+right-click each multi-bit signal → **Display format → Hex**, and screenshot.
 
 ---
 
@@ -279,9 +283,22 @@ The GDS workflow runs about a dozen stages; the talk-relevant ones are:
 | **Static timing analysis (STA)** | Verifies the longest combinational path fits in one 20 ns clock period at all process corners. | Slack reports. |
 | **GDSII export** | Dumps the layout to a binary file the foundry can ingest. | `tt_um_arielfayol37.gds` |
 
-The screenshot you'll grab for the slide is the output of the routing stage,
-viewed in KLayout — it shows colorful metal layers over the placed gates.
-You can find it on the gds workflow's run page under Artifacts → `GDS` → `runs/wokwi/final/gds/`.
+The rendered layout is checked in as `docs/gds_render.png`:
+
+![GDS layout](gds_render.png)
+
+When you point at this on the slide:
+- The dense cluster at the **top-right** with the colored stripes is the actual
+  LFSR logic — eight flops + the XOR + the seed-load muxes. It looks small
+  because it *is* small (~50 µm² of "real" gates).
+- The vast repeating field below it is **filler and decap cells** the flow
+  inserts automatically. They contribute no logic; they exist to satisfy the
+  fab's minimum-density rules (so the chemical-mechanical polish step doesn't
+  dish out empty regions) and to provide local power-supply decoupling. Every
+  TT design has them — the smaller the actual logic, the more of the tile is
+  filler.
+- The strip at the **very top edge** is the IO ring that connects to the
+  parent TT chip's pin matrix.
 
 ---
 

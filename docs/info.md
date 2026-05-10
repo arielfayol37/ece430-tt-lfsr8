@@ -59,6 +59,27 @@ cd test
 make
 ```
 
+### Simulation waveform
+
+![Simulation waveform showing reset release and the first ~16 LFSR states](<FST Waveform.png>)
+
+The trace above is from `test_lfsr_sequence` opened in Surfer. After
+`rst_n` rises, `state` cycles through `ac → 59 → b2 → 65 → cb → 96 → 2c → 58
+→ b0 → c1 → c3 → b7 → 8f → 1f → 3e → 7d → …`, exactly matching the Python
+reference model. The single `feedback` bit you see toggling above `state` is
+the XOR output that gets shifted into bit 0 on each clock.
+
+## Layout
+
+![GDSII layout of the hardened design (sky130)](gds_render.png)
+
+This is the placed-and-routed view of the chip from the LibreLane flow.
+The dense cluster at the top-right is the actual LFSR logic — eight flops
+plus the XOR and the seed-load muxes. The repeating rows that fill the rest
+of the tile are filler/decap cells the flow adds to meet density and power
+integrity rules; they do nothing electrically but are required by the
+manufacturing process.
+
 ## Pin assignments
 
 | Pin       | Direction | Name      | Purpose                                  |
