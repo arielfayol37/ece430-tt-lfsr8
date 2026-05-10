@@ -27,7 +27,7 @@ a seed of `0x00` is automatically substituted with `0x01`.
 
 ### Block diagram
 
-![Block diagram of the 8-bit Fibonacci LFSR](block_diagram.svg)
+![Block diagram of the 8-bit Fibonacci LFSR](block_diagram.png)
 
 The eight register cells (`b0`–`b7`) form a left-shifting register. On every
 clock edge each cell takes the value of its left neighbour; the new bit at
