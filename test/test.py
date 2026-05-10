@@ -3,7 +3,7 @@
 
 import cocotb
 from cocotb.clock import Clock
-from cocotb.triggers import ClockCycles
+from cocotb.triggers import FallingEdge
 
 
 def lfsr_step(state):
@@ -13,11 +13,19 @@ def lfsr_step(state):
 
 
 async def reset_with_seed(dut, seed):
+    """Hold reset for several cycles with the seed on ui_in.
+
+    Reset is deasserted at a falling edge, leaving the design ready for the
+    next rising edge to start shifting. After this returns, the testbench is
+    aligned to a falling edge so reads are after the previous edge's NBAs
+    have settled.
+    """
     dut.ena.value = 1
     dut.uio_in.value = 0
     dut.ui_in.value = seed
     dut.rst_n.value = 0
-    await ClockCycles(dut.clk, 5)
+    for _ in range(5):
+        await FallingEdge(dut.clk)
     dut.rst_n.value = 1
 
 
@@ -30,26 +38,27 @@ async def test_lfsr_sequence(dut):
     seed = 0xAC
     await reset_with_seed(dut, seed)
 
-    assert int(dut.uo_out.value) == seed, (
-        f"After reset: got {int(dut.uo_out.value):#04x}, expected seed {seed:#04x}"
+    actual = int(dut.uo_out.value)
+    assert actual == seed, (
+        f"After reset: got {actual:#04x}, expected seed {seed:#04x}"
     )
 
     expected = seed
-    states_seen = set()
+    states_seen = {expected}
     for i in range(255):
-        states_seen.add(expected)
         expected = lfsr_step(expected)
-        await ClockCycles(dut.clk, 1)
+        await FallingEdge(dut.clk)
         actual = int(dut.uo_out.value)
         assert actual == expected, (
             f"Cycle {i + 1}: got {actual:#04x}, expected {expected:#04x}"
         )
+        states_seen.add(actual)
 
     assert len(states_seen) == 255, (
-        f"Sequence is shorter than 255 (only {len(states_seen)} unique states)"
+        f"Sequence has only {len(states_seen)} unique states (expected 255)"
     )
     assert expected == seed, (
-        f"After full period: expected {seed:#04x}, got {expected:#04x}"
+        f"Did not return to seed after full period: got {expected:#04x}"
     )
 
 
@@ -62,13 +71,12 @@ async def test_zero_seed_avoids_lockup(dut):
     await reset_with_seed(dut, 0)
 
     assert int(dut.uo_out.value) == 0x01, (
-        f"With zero seed: expected 0x01 substitution, "
-        f"got {int(dut.uo_out.value):#04x}"
+        f"Zero seed: expected 0x01 substitution, got {int(dut.uo_out.value):#04x}"
     )
 
     seen = {0x01}
     for _ in range(20):
-        await ClockCycles(dut.clk, 1)
+        await FallingEdge(dut.clk)
         seen.add(int(dut.uo_out.value))
     assert len(seen) > 1, "LFSR appears stuck"
     assert 0 not in seen, "LFSR reached the all-zero state (should be impossible)"
@@ -85,7 +93,7 @@ async def test_different_seeds_diverge(dut):
         await reset_with_seed(dut, seed)
         run = []
         for _ in range(16):
-            await ClockCycles(dut.clk, 1)
+            await FallingEdge(dut.clk)
             run.append(int(dut.uo_out.value))
         streams[seed] = run
 

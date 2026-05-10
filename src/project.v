@@ -30,7 +30,10 @@ module tt_um_arielfayol37 (
   // Taps at positions 8, 6, 5, 4 (1-indexed) -> bits 7, 5, 4, 3 (0-indexed).
   wire feedback = state[7] ^ state[5] ^ state[4] ^ state[3];
 
-  always @(posedge clk or negedge rst_n) begin
+  // Synchronous reset: while rst_n is low the seed is reloaded every clock,
+  // otherwise the register shifts. An async reset to a non-constant value
+  // doesn't map to sky130 standard cells, hence the sync-only style here.
+  always @(posedge clk) begin
     if (!rst_n) state <= safe_seed;
     else        state <= {state[6:0], feedback};
   end
